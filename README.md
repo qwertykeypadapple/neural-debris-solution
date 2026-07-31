@@ -6,7 +6,7 @@ ESA / Sybilla Technologies "Secure Your AI" series, Kaggle, July 2026.
 | | Score | Rank |
 |---|---|---|
 | **Private (final)** | **209.11** | **4 / 567** |
-| Public | 149.06 | 13 |
+| Public | 149.06 | 4 |
 | Poisoned model as-is | 378.0 | — |
 
 ## The task

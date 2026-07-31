@@ -1,6 +1,6 @@
-# 4th Place (Private) — Through the Recall Wall: What Weight-Space Unlearning Added on Top of Solving maCADD
+# 4th Place — Through the Recall Wall: What Weight-Space Unlearning Added on Top of Solving maCADD
 
-**Private 209.11 (4th) · Public 149.06 (13th) · 8 submissions over 3 days.**
+**Final: 4th / 567 (private 209.11 · public 149.06) · 8 submissions over 3 days.**
 
 Before reading this, read @masayakawamata's excellent write-up:
 **[Public 49th — we never unlearned anything. We solved maCADD.](https://www.kaggle.com/competitions/neural-debris-removal-in-streak-detection-models/writeups/public-49th-we-never-unlearned-anything-we-solv)**
@@ -126,8 +126,8 @@ same idea with 8. Every submission priced one lever:
 
 ## 5. Public → private: the global-policy dividend
 
-Public 13th → **private 4th** (209.11), while much of the public 140–150 cluster fell out of
-the private top ranks. Their §10 policy statement ("global, monotone-in-evidence remaps, no
+Final standings: **4th on both boards** (209.11 private), while much of the mid-competition
+public 140–150 cluster dropped from the final standings. Their §10 policy statement ("global, monotone-in-evidence remaps, no
 per-image special-casing, should track") describes our pipeline too, and the private board
 validated exactly that class of solution. One ε for every floored box, one boost curve, one
 averaged model — nothing for the split to shear against.
