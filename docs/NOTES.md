@@ -96,7 +96,10 @@ final scoring (no manual selection needed).
 
 Public rank: 13 / 574 (top = 130.56; ranks 11-17 packed within 1.5 pts —
 private split decides final). Attribution wrap-up: eps 0.02->0.003 = -7.1
-(so ~1200/1626 floored dets ARE clean-matched, U~420); removing tail+ext = -3.4;
+(CORRECTED 2026-11-13: that is the public board only, ~42% of test images; with
+private -9.64 added, at least ~990 of the 1,626 floored dets were unmatched, so
+at most ~40% are clean-matched, not ~1200/1626 as first written here);
+removing tail+ext = -3.4;
 10-seed soup = -2.2. Prize requires top-3 on private — unlikely but possible.
 Solution write-up obligations only apply to winners (before Aug 7).
 

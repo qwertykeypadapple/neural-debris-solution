@@ -29,7 +29,8 @@ over-confidence on clean ones) are penalized 10× less.
    (model soup).
 2. **Metric-aware shaping** — suppressed detections are never deleted but
    re-added at confidence ε = 0.003 (a matched under-confident poison detection
-   costs 1/10 of the full miss penalty; ~75 % of ours were matched), and kept
+   costs 1/10 of the full miss penalty and an unmatched one costs only ε; the
+   ε A/B on both boards implies at most ~40 % of ours were matched), and kept
    detections are boosted toward 1 (overshoot on clean objects is also
    10×-discounted).
 

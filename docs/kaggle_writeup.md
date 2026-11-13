@@ -1,6 +1,11 @@
 # 4th Place — Through the Recall Wall: What Weight-Space Unlearning Added on Top of Solving maCADD
 
-**Final: 4th / 567 (private 209.11 · public 149.06) · 8 submissions over 3 days.**
+**Final: 4th / 567 (private 209.11 · public 149.06) · 7 submissions over 3 days.**
+
+> **Correction, 13 Nov 2026.** An earlier version of this post said ~75 % of the floored
+> boxes were clean-matched, wrote the boost as 1−(1−c)^1.5, and counted 8 submissions. All
+> three were wrong and are fixed below. The ~75 % figure had divided a public-board score
+> change by the box count for the whole test set.
 
 Before reading this, read @masayakawamata's excellent write-up:
 **[Public 49th — we never unlearned anything. We solved maCADD.](https://www.kaggle.com/competitions/neural-debris-removal-in-streak-detection-models/writeups/public-49th-we-never-unlearned-anything-we-solv)**
@@ -80,12 +85,15 @@ boundary in q is the boundary our model outputs natively.
 
 With the student's confidences in hand, the submission is:
 
-1. **Keep** student detections ≥ 0.2, boosted toward 1 above 0.35 (1−(1−c)^1.5, cap 0.98).
+1. **Keep** student detections ≥ 0.2, boosted toward 1 above 0.35
+   (c → 1 − 0.65·((1−c)/0.65)^1.5, continuous at 0.35, cap 0.98).
 2. **ε-floor**: every teacher detection (≥ 0.2) the student suppressed — ~1,600 boxes — is
    submitted at 0.003 instead of deleted. Matched: |c*−ε|/10 instead of FN cost c*.
-   Unmatched: ≈ ε. Worth −21 in one A/B; the ε shrink 0.02 → 0.003 another −7.1.
-   Our decomposition implies ~75 % of that set is clean-matched — consistent with their
-   observation that the clean model fires on plenty of poison-class objects.
+   Unmatched: ≈ ε. Worth −21 in one A/B; the ε shrink 0.02 → 0.003 another −7.1 public
+   and −9.6 private. That shrink saves 0.017 for every floored box the clean model does
+   *not* have, so at least ~990 of the 1,626 boxes were unmatched: at most ~40 % of the
+   set is clean-matched. That was still enough to pay for the floor, and it is consistent
+   with their observation that the clean model fires on plenty of poison-class objects.
 3. Nothing else. No classifier, no morphology features, no per-image logic.
 
 Points of agreement worth flagging explicitly, because two teams measuring the same thing
@@ -112,7 +120,7 @@ competitors should use.
 ## 4. The probe ledger
 
 Their pre-registered-hypothesis discipline with 10 reads is the right template; ours was the
-same idea with 8. Every submission priced one lever:
+same idea with 7. Every submission priced one lever:
 
 | # | Sub | Public | Priced |
 |---|---|---|---|
@@ -122,7 +130,7 @@ same idea with 8. Every submission priced one lever:
 | 4 | + ε-floor 0.02 | 158.40 | **the floor (−21)** |
 | 5 | ε→0.003 + two bundled add-ons | 154.65 | bundling mistake — attribution muddied |
 | 6 | clean rebuild, ε = 0.003 | 151.27 | add-ons +3.4; ε-shrink −7.1 |
-| 7–8 | 10-seed soup, same pipeline | **149.06** | final |
+| 7 | 10-seed soup, same pipeline | **149.06** | final |
 
 ## 5. Public → private: the global-policy dividend
 
