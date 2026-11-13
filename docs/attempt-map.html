@@ -1,0 +1,483 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Neural Debris Attempt Map</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap">
+<style>body{margin:0}</style>
+<style>
+/* Layout: one reading column. The attempt matrix leads; the stage figures follow in the order data moves through them. */
+:root{
+  --bg:#f3f5f9; --surface:#ffffff; --fg:#152033; --muted:#566377; --line:#d5dbe4; --line-strong:#8793a6;
+  --poison:#b23a26; --poison-soft:#f9e5df;
+  --student:#0b7285; --student-soft:#daf0f4;
+  --floor:#6a4cc0; --floor-soft:#ece6fb;
+  --buffer:#8a6a0a; --buffer-soft:#f5ebc8;
+  --font-display:"Space Grotesk","Inter",system-ui,sans-serif;
+  --font-body:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0e141d; --surface:#161f2b; --fg:#e4eaf2; --muted:#9aa8ba; --line:#2a3545; --line-strong:#66758a;
+    --poison:#ee8a75; --poison-soft:#3b201b; --student:#4fc4dc; --student-soft:#11343d;
+    --floor:#b3a0f2; --floor-soft:#2b2447; --buffer:#dcb64e; --buffer-soft:#3a3013; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0e141d; --surface:#161f2b; --fg:#e4eaf2; --muted:#9aa8ba; --line:#2a3545; --line-strong:#66758a;
+  --poison:#ee8a75; --poison-soft:#3b201b; --student:#4fc4dc; --student-soft:#11343d;
+  --floor:#b3a0f2; --floor-soft:#2b2447; --buffer:#dcb64e; --buffer-soft:#3a3013; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.6 var(--font-body);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px;margin:0 auto;padding-block:36px 72px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:44px}
+header,section{display:flex;flex-direction:column;gap:16px;min-width:0}
+h1,h2,h3{font-family:var(--font-display);font-weight:600;margin:0;text-wrap:balance;letter-spacing:-0.01em}
+h1{font-size:32px;line-height:1.15}
+h2{font-size:22px;line-height:1.25}
+h3{font-size:16px;line-height:1.3}
+p{margin:0;max-width:70ch}
+.eyebrow{font:500 12px/1.5 var(--font-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.lead{font-size:16.5px}
+.muted{color:var(--muted)}
+code,.mono{font-family:var(--font-mono);font-size:.92em}
+.refs{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:0;margin:0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.refs div{padding:12px 16px 12px 0}
+.refs dt{font-size:12.5px;color:var(--muted)}
+.refs dd{margin:2px 0 0;font:600 20px/1.2 var(--font-display);font-variant-numeric:tabular-nums}
+.refs dd small{font:400 12.5px var(--font-body);color:var(--muted)}
+figure{margin:0;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;min-width:0}
+.scroll{overflow-x:auto}
+svg{display:block;width:100%;height:auto}
+.w940{min-width:940px}.w900{min-width:860px}
+figcaption{margin-top:12px;color:var(--muted);font-size:13.5px;line-height:1.55;max-width:80ch}
+/* svg parts */
+svg text{font-family:var(--font-body);fill:var(--fg)}
+.st{font-size:12.5px}.sb{font-size:13px;font-weight:600}.ss{font-size:12px;fill:var(--muted)}.sx{font-size:11px;fill:var(--muted)}
+.sh{font:500 11px var(--font-mono);letter-spacing:.08em;fill:var(--muted)}
+.num{font-variant-numeric:tabular-nums}.strong{fill:var(--fg);font-weight:500}
+text.dim{fill:var(--muted);font-weight:400}
+.ln{fill:none;stroke:var(--fg);stroke-width:1.3}.ah{fill:var(--fg)}
+.rule{stroke:var(--line);stroke-width:1}.axis{stroke:var(--line-strong);stroke-width:1}
+.bx{fill:var(--surface);stroke:var(--line-strong);stroke-width:1.2}
+.bx-poison{fill:var(--poison-soft);stroke:var(--poison);stroke-width:1.2}
+.bx-student{fill:var(--student-soft);stroke:var(--student);stroke-width:1.2}
+.bx-floor{fill:var(--floor-soft);stroke:var(--floor);stroke-width:1.2}
+.chip{fill:var(--surface);stroke:var(--line);stroke-width:1}.chip.on{fill:var(--student-soft);stroke:var(--student);stroke-width:1.4}
+.ct{font-size:12.5px}.ct.on{font-weight:600}
+.cnum{fill:var(--surface);stroke:var(--fg);stroke-width:1.3}.cnum.fin{fill:var(--student);stroke:var(--student)}
+.cnum-t{font:600 14px var(--font-display)}.cnum-t.fin{fill:var(--bg)}
+.bar-pub{fill:var(--student)}.bar-priv{fill:var(--line-strong)}
+.sw-forget{fill:var(--poison)}.sw-buffer{fill:var(--buffer)}.sw-retain{fill:var(--student)}
+.seed{fill:var(--surface);stroke:var(--student);stroke-width:1.3}
+.sky{fill:var(--bg)}.star{fill:var(--fg);opacity:.35}
+.an-retain{fill:var(--student);fill-opacity:.12;stroke:var(--student);stroke-width:1.2}
+.an-buffer{fill:var(--buffer);fill-opacity:.14;stroke:var(--buffer);stroke-width:1.2}
+.an-forget{fill:var(--poison);fill-opacity:.14;stroke:var(--poison);stroke-width:1.2}
+.pbox{fill:none;stroke:var(--fg);stroke-width:1.8;stroke-dasharray:5 3}
+.pstreak{stroke:var(--poison);stroke-width:3.5;stroke-linecap:round}
+.faint{stroke:var(--fg);stroke-width:1.6;opacity:.4;stroke-linecap:round}
+text.t-retain{fill:var(--student)}text.t-buffer{fill:var(--buffer)}text.t-forget{fill:var(--poison)}
+/* attempts list */
+.attempts{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px 24px}
+.attempts li{display:grid;grid-template-columns:32px 1fr;gap:12px;min-width:0}
+.attempts .n{width:30px;height:30px;border-radius:50%;border:1.3px solid var(--fg);display:grid;place-items:center;font:600 14px var(--font-display)}
+.attempts li.fin .n{background:var(--student);border-color:var(--student);color:var(--bg)}
+.attempts h3{font-size:15px}
+.attempts .meta{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums;margin:2px 0 4px}
+.attempts p{font-size:14px;line-height:1.5}
+.two{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:24px;align-items:start}
+@media (max-width:980px){.attempts{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:760px){.two{grid-template-columns:minmax(0,1fr)} h1{font-size:26px}}
+@media (max-width:560px){.attempts{grid-template-columns:minmax(0,1fr)}}
+.settings{margin:0;display:grid;grid-template-columns:max-content 1fr;gap:6px 16px;font-size:14px}
+.settings dt{color:var(--muted)}.settings dd{margin:0;font-variant-numeric:tabular-nums}
+.tblwrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums}
+th,td{padding:9px 14px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font-weight:600;font-size:12.5px;color:var(--muted);white-space:nowrap}
+td.r,th.r{text-align:right}
+.key{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px}
+.k-poison{background:var(--poison)}.k-student{background:var(--student)}.k-floor{background:var(--floor)}
+.formula{font-family:var(--font-mono);font-size:14px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 14px;overflow-x:auto;white-space:nowrap;max-width:100%}
+ul.plain{margin:0;padding-left:20px;max-width:75ch}
+ul.plain li{margin:4px 0}
+footer{color:var(--muted);font-size:13px;border-top:1px solid var(--line);padding-top:16px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="eyebrow">ESA Neural Debris Removal · Kaggle · 20–23 July 2026</div>
+  <h1>Neural Debris attempt map</h1>
+  <p class="lead">Seven files went to Kaggle. Each one came out of the same four-stage pipeline with different switches set. The first figure shows which switches each attempt used and what it scored. The figures after it open up each stage.</p>
+  <dl class="refs">
+    <div><dt>Poisoned model, as handed out</dt><dd>378.02</dd></div>
+    <div><dt>Empty file</dt><dd>284.20</dd></div>
+    <div><dt>Official fine-tuning baseline</dt><dd>259.92</dd></div>
+    <div><dt>Final attempt</dt><dd>149.06 <small>public · 209.11 private · 4th of 567</small></dd></div>
+  </dl>
+  <p class="muted" style="font-size:13.5px">Scores are maCADD, the distance to a hidden clean model. Lower is better. The first three numbers are public-board scores.</p>
+</header>
+
+<section>
+  <h2>The seven attempts</h2>
+  <figure>
+    <div class="scroll">
+<svg class="w940" viewBox="0 0 1040 632" role="img" aria-label="Seven columns, one per file sent to Kaggle, showing the model, boost, floor value and extra rules used, the number of boxes in the file, and the public and private scores. Arrows show which earlier attempt each one was built from.">
+<defs><marker id="arE" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker></defs>
+<path d="M224,72 Q281,34 338,72" class="ln" marker-end="url(#arE)"/>
+<path d="M224,72 Q344,-8 464,72" class="ln" marker-end="url(#arE)"/>
+<path d="M476,72 Q533,34 590,72" class="ln" marker-end="url(#arE)"/>
+<path d="M602,72 Q659,34 716,72" class="ln" marker-end="url(#arE)"/>
+<path d="M602,72 Q722,-8 842,72" class="ln" marker-end="url(#arE)"/>
+<path d="M854,72 Q911,34 968,72" class="ln" marker-end="url(#arE)"/>
+<path d="M10,30 H34" class="ln" marker-end="url(#arE)"/><text x="42" y="34" class="ss">built from</text>
+<rect x="10" y="46" width="24" height="14" rx="4" class="chip on"/><text x="42" y="57" class="ss">changed here</text>
+<text x="10" y="124" class="sb">Sent (UTC)</text>
+<text x="10" y="146" class="sb">What changed</text>
+<text x="10" y="206" class="sb">Model</text>
+<text x="10" y="248" class="sb">Boost</text>
+<text x="10" y="290" class="sb">Floor value</text>
+<text x="10" y="332" class="sb">Extra rules</text>
+<text x="10" y="372" class="sb">Boxes in file</text>
+<text x="10" y="436" class="sb">Score</text>
+<text x="10" y="588" class="sb">Public change</text>
+<text x="10" y="610" class="sb">Private change</text>
+<rect x="10" y="452" width="12" height="12" class="bar-pub"/><text x="28" y="462" class="ss">public</text>
+<rect x="10" y="474" width="12" height="12" class="bar-priv"/><text x="28" y="484" class="ss">private</text>
+<line x1="160" y1="174" x2="1032" y2="174" class="rule"/><line x1="160" y1="392" x2="1032" y2="392" class="rule"/>
+<line x1="160" y1="560" x2="1032" y2="560" class="axis"/><text x="152" y="564" class="sx num" text-anchor="end">0</text>
+<line x1="160" y1="510" x2="1032" y2="510" class="rule"/><text x="152" y="514" class="sx num" text-anchor="end">100</text>
+<line x1="160" y1="460" x2="1032" y2="460" class="rule"/><text x="152" y="464" class="sx num" text-anchor="end">200</text>
+<circle cx="218" cy="92" r="15" class="cnum"/><text x="218" y="97" text-anchor="middle" class="cnum-t">1</text>
+<text x="218" y="124" text-anchor="middle" class="ss num">Jul 20 · 11:32</text>
+<text x="218" y="146" text-anchor="middle" class="st">first working</text>
+<text x="218" y="162" text-anchor="middle" class="st">student</text>
+<rect x="160" y="184" width="116" height="34" rx="6" class="chip on"/><text x="218" y="206" text-anchor="middle" class="ct on">1 run</text>
+<rect x="160" y="226" width="116" height="34" rx="6" class="chip"/><text x="218" y="248" text-anchor="middle" class="ct dim">off</text>
+<rect x="160" y="268" width="116" height="34" rx="6" class="chip"/><text x="218" y="290" text-anchor="middle" class="ct dim">none</text>
+<rect x="160" y="310" width="116" height="34" rx="6" class="chip"/><text x="218" y="332" text-anchor="middle" class="ct dim">none</text>
+<text x="218" y="372" text-anchor="middle" class="sb num">859</text>
+<rect x="176" y="467.5" width="36" height="92.5" class="bar-pub"/><text x="194" y="462.5" text-anchor="middle" class="sx num strong">185.01</text>
+<rect x="224" y="430.7" width="36" height="129.3" class="bar-priv"/><text x="242" y="425.7" text-anchor="middle" class="sx num strong">258.63</text>
+<text x="218" y="588" text-anchor="middle" class="sb num dim">start</text><text x="218" y="610" text-anchor="middle" class="sb num dim">start</text>
+<circle cx="344" cy="92" r="15" class="cnum"/><text x="344" y="97" text-anchor="middle" class="cnum-t">2</text>
+<text x="344" y="124" text-anchor="middle" class="ss num">Jul 20 · 12:09</text>
+<text x="344" y="146" text-anchor="middle" class="st">+ boost</text>
+<rect x="286" y="184" width="116" height="34" rx="6" class="chip"/><text x="344" y="206" text-anchor="middle" class="ct">1 run</text>
+<rect x="286" y="226" width="116" height="34" rx="6" class="chip on"/><text x="344" y="248" text-anchor="middle" class="ct on">on</text>
+<rect x="286" y="268" width="116" height="34" rx="6" class="chip"/><text x="344" y="290" text-anchor="middle" class="ct dim">none</text>
+<rect x="286" y="310" width="116" height="34" rx="6" class="chip"/><text x="344" y="332" text-anchor="middle" class="ct dim">none</text>
+<text x="344" y="372" text-anchor="middle" class="sb num">859</text>
+<rect x="302" y="467.6" width="36" height="92.4" class="bar-pub"/><text x="320" y="462.6" text-anchor="middle" class="sx num strong">184.78</text>
+<rect x="350" y="430.7" width="36" height="129.3" class="bar-priv"/><text x="368" y="425.7" text-anchor="middle" class="sx num strong">258.51</text>
+<text x="344" y="588" text-anchor="middle" class="sb num">−0.23</text><text x="344" y="610" text-anchor="middle" class="sb num">−0.13</text>
+<circle cx="470" cy="92" r="15" class="cnum"/><text x="470" y="97" text-anchor="middle" class="cnum-t">3</text>
+<text x="470" y="124" text-anchor="middle" class="ss num">Jul 21 · 06:02</text>
+<text x="470" y="146" text-anchor="middle" class="st">6 runs averaged,</text>
+<text x="470" y="162" text-anchor="middle" class="st">raw file again</text>
+<rect x="412" y="184" width="116" height="34" rx="6" class="chip on"/><text x="470" y="206" text-anchor="middle" class="ct on">6-run avg</text>
+<rect x="412" y="226" width="116" height="34" rx="6" class="chip"/><text x="470" y="248" text-anchor="middle" class="ct dim">off</text>
+<rect x="412" y="268" width="116" height="34" rx="6" class="chip"/><text x="470" y="290" text-anchor="middle" class="ct dim">none</text>
+<rect x="412" y="310" width="116" height="34" rx="6" class="chip"/><text x="470" y="332" text-anchor="middle" class="ct dim">none</text>
+<text x="470" y="372" text-anchor="middle" class="sb num">1,002</text>
+<rect x="428" y="470.2" width="36" height="89.8" class="bar-pub"/><text x="446" y="465.2" text-anchor="middle" class="sx num strong">179.57</text>
+<rect x="476" y="435.6" width="36" height="124.4" class="bar-priv"/><text x="494" y="430.6" text-anchor="middle" class="sx num strong">248.81</text>
+<text x="470" y="588" text-anchor="middle" class="sb num">−5.44</text><text x="470" y="610" text-anchor="middle" class="sb num">−9.82</text>
+<circle cx="596" cy="92" r="15" class="cnum"/><text x="596" y="97" text-anchor="middle" class="cnum-t">4</text>
+<text x="596" y="124" text-anchor="middle" class="ss num">Jul 22 · 13:12</text>
+<text x="596" y="146" text-anchor="middle" class="st">+ boost</text>
+<text x="596" y="162" text-anchor="middle" class="st">+ floor at 0.02</text>
+<rect x="538" y="184" width="116" height="34" rx="6" class="chip"/><text x="596" y="206" text-anchor="middle" class="ct">6-run avg</text>
+<rect x="538" y="226" width="116" height="34" rx="6" class="chip on"/><text x="596" y="248" text-anchor="middle" class="ct on">on</text>
+<rect x="538" y="268" width="116" height="34" rx="6" class="chip on"/><text x="596" y="290" text-anchor="middle" class="ct on">0.02</text>
+<rect x="538" y="310" width="116" height="34" rx="6" class="chip"/><text x="596" y="332" text-anchor="middle" class="ct dim">none</text>
+<text x="596" y="372" text-anchor="middle" class="sb num">2,628</text>
+<rect x="554" y="480.8" width="36" height="79.2" class="bar-pub"/><text x="572" y="475.8" text-anchor="middle" class="sx num strong">158.40</text>
+<rect x="602" y="448.4" width="36" height="111.6" class="bar-priv"/><text x="620" y="443.4" text-anchor="middle" class="sx num strong">223.25</text>
+<text x="596" y="588" text-anchor="middle" class="sb num">−21.17</text><text x="596" y="610" text-anchor="middle" class="sb num">−25.56</text>
+<circle cx="722" cy="92" r="15" class="cnum"/><text x="722" y="97" text-anchor="middle" class="cnum-t">5</text>
+<text x="722" y="124" text-anchor="middle" class="ss num">Jul 22 · 13:44</text>
+<text x="722" y="146" text-anchor="middle" class="st">floor → 0.003</text>
+<text x="722" y="162" text-anchor="middle" class="st">+ 2 extra rules</text>
+<rect x="664" y="184" width="116" height="34" rx="6" class="chip"/><text x="722" y="206" text-anchor="middle" class="ct">6-run avg</text>
+<rect x="664" y="226" width="116" height="34" rx="6" class="chip"/><text x="722" y="248" text-anchor="middle" class="ct">on</text>
+<rect x="664" y="268" width="116" height="34" rx="6" class="chip on"/><text x="722" y="290" text-anchor="middle" class="ct on">0.003</text>
+<rect x="664" y="310" width="116" height="34" rx="6" class="chip on"/><text x="722" y="332" text-anchor="middle" class="ct on">2 add-ons</text>
+<text x="722" y="372" text-anchor="middle" class="sb num">4,008</text>
+<rect x="680" y="482.7" width="36" height="77.3" class="bar-pub"/><text x="698" y="477.7" text-anchor="middle" class="sx num strong">154.65</text>
+<rect x="728" y="452.8" width="36" height="107.2" class="bar-priv"/><text x="746" y="447.8" text-anchor="middle" class="sx num strong">214.49</text>
+<text x="722" y="588" text-anchor="middle" class="sb num">−3.75</text><text x="722" y="610" text-anchor="middle" class="sb num">−8.76</text>
+<circle cx="848" cy="92" r="15" class="cnum"/><text x="848" y="97" text-anchor="middle" class="cnum-t">6</text>
+<text x="848" y="124" text-anchor="middle" class="ss num">Jul 23 · 00:01</text>
+<text x="848" y="146" text-anchor="middle" class="st">floor → 0.003</text>
+<text x="848" y="162" text-anchor="middle" class="st">and nothing else</text>
+<rect x="790" y="184" width="116" height="34" rx="6" class="chip"/><text x="848" y="206" text-anchor="middle" class="ct">6-run avg</text>
+<rect x="790" y="226" width="116" height="34" rx="6" class="chip"/><text x="848" y="248" text-anchor="middle" class="ct">on</text>
+<rect x="790" y="268" width="116" height="34" rx="6" class="chip on"/><text x="848" y="290" text-anchor="middle" class="ct on">0.003</text>
+<rect x="790" y="310" width="116" height="34" rx="6" class="chip"/><text x="848" y="332" text-anchor="middle" class="ct dim">none</text>
+<text x="848" y="372" text-anchor="middle" class="sb num">2,628</text>
+<rect x="806" y="484.4" width="36" height="75.6" class="bar-pub"/><text x="824" y="479.4" text-anchor="middle" class="sx num strong">151.27</text>
+<rect x="854" y="453.2" width="36" height="106.8" class="bar-priv"/><text x="872" y="448.2" text-anchor="middle" class="sx num strong">213.61</text>
+<text x="848" y="588" text-anchor="middle" class="sb num">−7.13</text><text x="848" y="610" text-anchor="middle" class="sb num">−9.64</text>
+<circle cx="974" cy="92" r="15" class="cnum fin"/><text x="974" y="97" text-anchor="middle" class="cnum-t fin">7</text>
+<text x="974" y="124" text-anchor="middle" class="ss num">Jul 23 · 00:03</text>
+<text x="974" y="146" text-anchor="middle" class="st">10 runs averaged</text>
+<rect x="916" y="184" width="116" height="34" rx="6" class="chip on"/><text x="974" y="206" text-anchor="middle" class="ct on">10-run avg</text>
+<rect x="916" y="226" width="116" height="34" rx="6" class="chip"/><text x="974" y="248" text-anchor="middle" class="ct">on</text>
+<rect x="916" y="268" width="116" height="34" rx="6" class="chip"/><text x="974" y="290" text-anchor="middle" class="ct">0.003</text>
+<rect x="916" y="310" width="116" height="34" rx="6" class="chip"/><text x="974" y="332" text-anchor="middle" class="ct dim">none</text>
+<text x="974" y="372" text-anchor="middle" class="sb num">2,627</text>
+<rect x="932" y="485.5" width="36" height="74.5" class="bar-pub"/><text x="950" y="480.5" text-anchor="middle" class="sx num strong">149.06</text>
+<rect x="980" y="455.4" width="36" height="104.6" class="bar-priv"/><text x="998" y="450.4" text-anchor="middle" class="sx num strong">209.11</text>
+<text x="974" y="588" text-anchor="middle" class="sb num">−2.21</text><text x="974" y="610" text-anchor="middle" class="sb num">−4.50</text>
+</svg>
+    </div>
+    <figcaption>Each column is one file sent to Kaggle, in time order. A filled cell is something that changed from the attempt the arrow comes from. The two change rows compare each attempt with that same earlier attempt. Attempts 4 and 5 changed more than one thing at once, so their gains cannot be split between the changes.</figcaption>
+  </figure>
+
+  <ol class="attempts">
+    <li><div class="n">1</div><div><h3>Single run, raw file</h3><div class="meta">859 boxes · 185.01 public · 258.63 private</div><p>One trained student. The file is every student box scoring 0.2 or more, untouched. This is what the unlearning does by itself: 378.02 down to 185.01.</p></div></li>
+    <li><div class="n">2</div><div><h3>Same boxes, boosted</h3><div class="meta">859 boxes · 184.78 public · 258.51 private</div><p>Scores of 0.35 and above were pushed toward 1. The gain was 0.23, so the direction was right but the effect was small.</p></div></li>
+    <li><div class="n">3</div><div><h3>Six runs averaged, raw file</h3><div class="meta">1,002 boxes · 179.57 public · 248.81 private</div><p>Six students with different seeds, weights averaged into one model. The file was the training kernel's own raw output, so the boost is off again. The averaged model keeps 143 more boxes than the single run.</p></div></li>
+    <li><div class="n">4</div><div><h3>Boost plus floor at 0.02</h3><div class="meta">2,628 boxes · 158.40 public · 223.25 private</div><p>The 1,626 poisoned-model boxes that the student no longer reports were put back with a score of 0.02. Boost was switched on in the same file. Largest single step: 21.17 public.</p></div></li>
+    <li><div class="n">5</div><div><h3>Three changes at once</h3><div class="meta">4,008 boxes · 154.65 public · 214.49 private</div><p>Floor lowered to 0.003, floor widened to poisoned-model boxes scoring 0.1 to 0.2 (2,854 floored), and 152 low-scoring student boxes added back. The score improved, but nothing says which change did it.</p></div></li>
+    <li><div class="n">6</div><div><h3>Floor at 0.003, nothing else</h3><div class="meta">2,628 boxes · 151.27 public · 213.61 private</div><p>Attempt 4 with only the floor value changed. That one change was worth 7.13 public. It also beat attempt 5 by 3.38 public and 0.88 private, so the two extra rules had cost a little.</p></div></li>
+    <li class="fin"><div class="n">7</div><div><h3>Ten runs averaged, final</h3><div class="meta">2,627 boxes · 149.06 public · 209.11 private</div><p>Same file recipe as attempt 6 on a ten-run model: 1,029 kept boxes and 1,598 floored. This is the file that placed 4th of 567.</p></div></li>
+  </ol>
+
+  <h3>Built but never sent</h3>
+  <ul class="plain">
+    <li>A three-run average (kernel v3). It was replaced by the six-run model the same day.</li>
+    <li>A six-run file with boost only, <code>sub3_soup_boost.csv</code>. The kernel's raw file went in as attempt 3 instead.</li>
+    <li>A per-box score rule worked out on the last morning, <code>final.csv</code>. The daily quota was used up and it was never scored.</li>
+  </ul>
+</section>
+
+<section>
+  <div class="eyebrow">Stage 1</div>
+  <h2>One training run</h2>
+  <p>Every model in the table above is made of runs like this one. Two copies of the poisoned model are loaded. The teacher never changes. The student is trained to forget the poison streaks and to copy the teacher everywhere else.</p>
+  <figure>
+    <div class="scroll">
+<svg class="w900" viewBox="0 0 1000 530" role="img" aria-label="One training run: a training image is built from an unlearn image, passed through the frozen poisoned teacher and the trainable student, their scores are compared anchor by anchor in three zones, and the loss updates only the student. This repeats 800 times.">
+<defs><marker id="arA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker></defs>
+<text x="20" y="26" class="sh">1 · BUILD A TRAINING IMAGE</text>
+<text x="360" y="26" class="sh">2 · RUN BOTH MODELS</text>
+<text x="720" y="26" class="sh">3 · COMPARE AT EVERY ANCHOR</text>
+<rect x="20" y="44" width="290" height="56" rx="8" class="bx"/><text x="34" y="67" class="sb">Pick 1 of the 20 unlearn images</text><text x="34" y="86" class="ss">1024 px · one labelled poison streak</text>
+<path d="M165,100 V121" class="ln" marker-end="url(#arA)"/>
+<rect x="20" y="122" width="290" height="56" rx="8" class="bx"/><text x="34" y="145" class="sb">Rotate and flip at random</text><text x="34" y="164" class="ss">8 possible orientations</text>
+<path d="M165,178 V199" class="ln" marker-end="url(#arA)"/>
+<rect x="20" y="200" width="290" height="56" rx="8" class="bx"/><text x="34" y="223" class="sb">Paste 0–2 extra poison patches</text><text x="34" y="242" class="ss">brightness × 0.6–1.4 · count as poison</text>
+<path d="M165,256 V277" class="ln" marker-end="url(#arA)"/>
+<rect x="20" y="278" width="290" height="56" rx="8" class="bx"/><text x="34" y="301" class="sb">Draw 0–2 faint synthetic streaks</text><text x="34" y="320" class="ss">SNR 3–15 · no label, the teacher decides</text>
+<path d="M165,334 V355" class="ln" marker-end="url(#arA)"/>
+<rect x="20" y="356" width="290" height="56" rx="8" class="bx"/><text x="34" y="379" class="sb">Scale to 0–255, resize to 800 px</text><text x="34" y="398" class="ss">same size the model sees at test time</text>
+<path d="M310,384 H335 V131 H359" class="ln" marker-end="url(#arA)"/>
+<path d="M335,331 H359" class="ln" marker-end="url(#arA)"/>
+<text x="318" y="404" class="ss">4 images per step</text>
+<rect x="360" y="86" width="240" height="90" rx="8" class="bx-poison"/><text x="374" y="109" class="sb">Teacher</text><text x="374" y="128" class="ss">the poisoned model, frozen</text><text x="374" y="145" class="ss">gives the target scores</text>
+<rect x="360" y="286" width="240" height="90" rx="8" class="bx-student"/><text x="374" y="309" class="sb">Student</text><text x="374" y="328" class="ss">starts as an exact copy</text><text x="374" y="345" class="ss">box-size head stays frozen</text>
+<rect x="720" y="44" width="260" height="220" rx="8" class="bx"/>
+<rect x="734" y="60" width="12" height="12" rx="2" class="sw-forget"/><text x="754" y="71" class="sb">Forget zone</text><text x="754" y="89" class="ss">IoU ≥ 0.25 with a poison box,</text>
+<text x="754" y="105" class="ss">or anchor centre inside it</text>
+<text x="754" y="121" class="st">→ push student score to 0</text>
+<rect x="734" y="141" width="12" height="12" rx="2" class="sw-buffer"/><text x="754" y="152" class="sb">Buffer zone</text><text x="754" y="170" class="ss">IoU between 0.05 and 0.25</text>
+<text x="754" y="186" class="st">→ no loss at all</text>
+<rect x="734" y="206" width="12" height="12" rx="2" class="sw-retain"/><text x="754" y="217" class="sb">Retain zone</text><text x="754" y="235" class="ss">every other anchor</text>
+<text x="754" y="251" class="st">→ match the teacher's score</text>
+<path d="M600,131 H719" class="ln" marker-end="url(#arA)"/><text x="660" y="124" text-anchor="middle" class="ss">target scores</text>
+<path d="M600,316 H660 V200 H719" class="ln" marker-end="url(#arA)"/><text x="667" y="262" class="ss">scores</text>
+<rect x="720" y="300" width="260" height="62" rx="8" class="bx"/><text x="734" y="323" class="sb">Loss = forget + 30 × retain</text><text x="734" y="342" class="ss">summed over the 4 images</text>
+<path d="M850,264 V299" class="ln" marker-end="url(#arA)"/>
+<path d="M720,348 H601" class="ln" marker-end="url(#arA)"/><text x="660" y="341" text-anchor="middle" class="ss">weight update</text>
+<text x="720" y="388" class="ss">AdamW · lr 5e-5 · weight decay 1e-4</text>
+<text x="720" y="406" class="ss">cosine decay · gradient clip 5</text>
+<path d="M480,376 V451" class="ln" marker-end="url(#arA)"/><text x="489" y="418" class="ss">repeat 800 times</text>
+<rect x="360" y="452" width="240" height="58" rx="8" class="bx-student"/><text x="374" y="475" class="sb">One trained student</text><text x="374" y="494" class="ss">800 steps ≈ 6.5 min on a Kaggle L4</text>
+</svg>
+    </div>
+    <figcaption>One training step. The pasted poison patches give more places to forget. The faint synthetic streaks have no label; the teacher's own response to them becomes the target, so the student keeps responding to faint streaks.</figcaption>
+  </figure>
+  <div class="two">
+    <figure>
+<svg viewBox="0 0 560 280" role="img" aria-label="Schematic of anchors around one labelled poison box: anchors that overlap it strongly or have their centre inside are forget anchors, one that overlaps slightly is a buffer anchor, and anchors elsewhere are retain anchors.">
+<rect x="0" y="0" width="560" height="280" rx="8" class="sky"/>
+<circle cx="130" cy="150" r="2" class="star"/><circle cx="470" cy="50" r="2.4" class="star"/><circle cx="385" cy="235" r="1.6" class="star"/><circle cx="250" cy="48" r="1.8" class="star"/><circle cx="520" cy="160" r="2" class="star"/><circle cx="215" cy="252" r="1.5" class="star"/>
+<rect x="40" y="40" width="110" height="60" class="an-retain"/>
+<rect x="430" y="190" width="100" height="60" class="an-retain"/>
+<rect x="40" y="200" width="140" height="40" class="an-retain"/>
+<line x1="52" y1="228" x2="168" y2="212" class="faint"/>
+<rect x="300" y="70" width="150" height="80" class="an-buffer"/>
+<rect x="205" y="110" width="140" height="70" class="an-forget"/>
+<rect x="250" y="125" width="60" height="60" class="an-forget"/>
+<rect x="220" y="120" width="120" height="50" class="pbox"/>
+<line x1="232" y1="160" x2="328" y2="130" class="pstreak"/>
+<text x="40" y="32" class="ss t-retain">retain: copy the teacher</text>
+<text x="300" y="62" class="ss t-buffer">buffer: no loss</text>
+<text x="205" y="202" class="ss t-forget">forget: score → 0</text>
+<text x="352" y="168" class="ss">labelled poison box</text>
+<text x="40" y="258" class="ss t-retain">faint streak: still copy the teacher</text>
+</svg>
+      <figcaption>How anchors are sorted around one labelled poison box. Schematic, with overlaps drawn to match the rule: the two red anchors have IoU 0.61 and 0.39, the yellow one 0.07.</figcaption>
+    </figure>
+    <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
+      <h3>Settings used in every run</h3>
+      <dl class="settings">
+        <dt>Steps</dt><dd>800, batch of 4 images</dd>
+        <dt>Optimiser</dt><dd>AdamW, learning rate 5e-5, weight decay 1e-4</dd>
+        <dt>Schedule</dt><dd>cosine decay to zero</dd>
+        <dt>Gradient clip</dt><dd>5.0</dd>
+        <dt>Loss weights</dt><dd>forget 1, retain 30</dd>
+        <dt>Retain weighting</dt><dd>each anchor weighted by the teacher's score, minimum 0.005</dd>
+        <dt>Frozen</dt><dd>the box-size (regression) head</dd>
+        <dt>Input</dt><dd>1024 px image resized to 800 px</dd>
+        <dt>Time</dt><dd>374 to 394 s per run on a Kaggle L4 GPU</dd>
+      </dl>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="eyebrow">Stage 2</div>
+  <h2>Averaging runs into one model</h2>
+  <p>Runs with different seeds end up with slightly different weights. Averaging the weights gives a single model that is used like any other. Four training kernels were run; three of their models were sent.</p>
+  <figure>
+    <div class="scroll">
+<svg class="w900" viewBox="0 0 1000 290" role="img" aria-label="Four training kernels. Version 2 trained one run. Version 3 averaged seeds 0 to 2 and was never sent. Version 4 averaged seeds 0 to 5. Version 5 trained seeds 6 to 9 and averaged them with the version 4 model to give a ten-run average.">
+<defs><marker id="arC" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker></defs>
+<text x="20" y="20" class="sh">KERNEL RUN</text><text x="180" y="20" class="sh">TRAINING RUNS (SEED)</text><text x="540" y="20" class="sh">MODEL</text><text x="772" y="20" class="sh">SENT AS</text>
+<text x="20" y="58" class="sb">Kernel v2 · Jul 20</text>
+<circle cx="190" cy="54" r="10" class="seed"/><text x="190" y="58" text-anchor="middle" class="sx num strong"></text>
+<path d="M352,54 H539" class="ln" marker-end="url(#arC)"/><text x="446" y="47" text-anchor="middle" class="ss">no averaging</text>
+<rect x="540" y="34" width="200" height="40" rx="8" class="bx-student"/><text x="640" y="59" text-anchor="middle" class="sb">Single-run student</text>
+<text x="772" y="58" class="st">attempts 1 and 2</text>
+<text x="20" y="122" class="sb">Kernel v3 · Jul 20</text>
+<circle cx="190" cy="118" r="10" class="seed"/><text x="190" y="122" text-anchor="middle" class="sx num strong">0</text>
+<circle cx="218" cy="118" r="10" class="seed"/><text x="218" y="122" text-anchor="middle" class="sx num strong">1</text>
+<circle cx="246" cy="118" r="10" class="seed"/><text x="246" y="122" text-anchor="middle" class="sx num strong">2</text>
+<path d="M352,118 H539" class="ln" marker-end="url(#arC)"/><text x="446" y="111" text-anchor="middle" class="ss">average the weights</text>
+<rect x="540" y="98" width="200" height="40" rx="8" class="bx-student"/><text x="640" y="123" text-anchor="middle" class="sb">3-run average</text>
+<text x="772" y="122" class="st dim">never sent</text>
+<text x="20" y="186" class="sb">Kernel v4 · Jul 20</text>
+<circle cx="190" cy="182" r="10" class="seed"/><text x="190" y="186" text-anchor="middle" class="sx num strong">0</text>
+<circle cx="218" cy="182" r="10" class="seed"/><text x="218" y="186" text-anchor="middle" class="sx num strong">1</text>
+<circle cx="246" cy="182" r="10" class="seed"/><text x="246" y="186" text-anchor="middle" class="sx num strong">2</text>
+<circle cx="274" cy="182" r="10" class="seed"/><text x="274" y="186" text-anchor="middle" class="sx num strong">3</text>
+<circle cx="302" cy="182" r="10" class="seed"/><text x="302" y="186" text-anchor="middle" class="sx num strong">4</text>
+<circle cx="330" cy="182" r="10" class="seed"/><text x="330" y="186" text-anchor="middle" class="sx num strong">5</text>
+<path d="M352,182 H539" class="ln" marker-end="url(#arC)"/><text x="446" y="175" text-anchor="middle" class="ss">average the weights</text>
+<rect x="540" y="162" width="200" height="40" rx="8" class="bx-student"/><text x="640" y="187" text-anchor="middle" class="sb">6-run average</text>
+<text x="772" y="186" class="st">attempts 3, 4, 5, 6</text>
+<text x="20" y="250" class="sb">Kernel v5 · Jul 22</text>
+<circle cx="190" cy="246" r="10" class="seed"/><text x="190" y="250" text-anchor="middle" class="sx num strong">6</text>
+<circle cx="218" cy="246" r="10" class="seed"/><text x="218" y="250" text-anchor="middle" class="sx num strong">7</text>
+<circle cx="246" cy="246" r="10" class="seed"/><text x="246" y="250" text-anchor="middle" class="sx num strong">8</text>
+<circle cx="274" cy="246" r="10" class="seed"/><text x="274" y="250" text-anchor="middle" class="sx num strong">9</text>
+<path d="M352,246 H539" class="ln" marker-end="url(#arC)"/><text x="446" y="239" text-anchor="middle" class="ss">average all ten</text>
+<rect x="540" y="226" width="200" height="40" rx="8" class="bx-student"/><text x="640" y="251" text-anchor="middle" class="sb">10-run average</text>
+<text x="772" y="250" class="st">attempt 7 (final)</text>
+<path d="M640,202 V225" class="ln" marker-end="url(#arC)"/><text x="648" y="218" class="ss">counts as 6 of the 10</text>
+</svg>
+    </div>
+    <figcaption>Each circle is one training run, labelled with its seed. The single run's seed was not logged. Kernel v5 trained four new runs and combined them with the saved six-run model at 6 to 4, which equals a plain average of all ten.</figcaption>
+  </figure>
+  <div class="tblwrap">
+    <table>
+      <thead><tr><th>Model</th><th>Runs</th><th class="r">Test boxes ≥ 0.2</th><th class="r">Score on the 20 poison streaks</th><th class="r">Score on 30 faint synthetic streaks</th><th>Sent as</th></tr></thead>
+      <tbody>
+        <tr><td><span class="key k-poison"></span>Poisoned model</td><td>none</td><td class="r">2,593</td><td class="r">0.603</td><td class="r">0.590</td><td>reference only</td></tr>
+        <tr><td><span class="key k-student"></span>Single run</td><td>1</td><td class="r">859</td><td class="r">0.000</td><td class="r">0.577</td><td>attempts 1, 2</td></tr>
+        <tr><td><span class="key k-student"></span>3-run average</td><td>seeds 0–2</td><td class="r">969</td><td class="r">0.001</td><td class="r">0.601</td><td>never sent</td></tr>
+        <tr><td><span class="key k-student"></span>6-run average</td><td>seeds 0–5</td><td class="r">1,002</td><td class="r">0.004</td><td class="r">0.606</td><td>attempts 3 to 6</td></tr>
+        <tr><td><span class="key k-student"></span>10-run average</td><td>seeds 0–9</td><td class="r">1,029</td><td class="r">0.004</td><td class="r">0.609</td><td>attempt 7</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="muted" style="font-size:13.5px">The two score columns are averages printed in the kernel logs. Both are measured on the 20 unlearn images that were also used for training.</p>
+</section>
+
+<section>
+  <div class="eyebrow">Stage 3</div>
+  <h2>Predicting on the test set</h2>
+  <p>Each finished model ran once over the 2,000 test images and saved every box scoring 0.01 or more, up to 150 per image. The poisoned model's own boxes for the same images were saved too. Stage 4 needs both lists. The kernel also wrote a plain file of student boxes scoring 0.2 or more; attempts 1 and 3 are that file.</p>
+</section>
+
+<section>
+  <div class="eyebrow">Stage 4</div>
+  <h2>Shaping the file</h2>
+  <p>Attempts 2 and 4 to 7 changed scores after prediction. The reason is the scoring rule, which prices errors very unevenly.</p>
+  <div class="tblwrap">
+    <table>
+      <thead><tr><th>What happens to one box</th><th>Cost added to the score</th></tr></thead>
+      <tbody>
+        <tr><td>It pairs with a clean-model box and its score errs the way unlearning should push: lower on a poison streak, higher on a clean streak</td><td>score gap ÷ 10</td></tr>
+        <tr><td>It pairs, but errs the other way</td><td>full score gap</td></tr>
+        <tr><td>A clean-model box has no partner in the file (a miss)</td><td>that box's clean score</td></tr>
+        <tr><td>A box in the file overlaps no clean-model box (an extra)</td><td>that box's own score</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="muted" style="font-size:13.5px">This is computed at eight overlap thresholds from 0.2 to 0.9 and averaged with the threshold as weight, so strict thresholds count more. Clean-model boxes scoring 0.2 or less are left out.</p>
+  <figure>
+    <div class="scroll">
+<svg class="w900" viewBox="0 0 1000 310" role="img" aria-label="Building the file: student boxes scoring at least 0.2 are kept and boosted. They are paired one to one with the poisoned model's boxes. Poisoned-model boxes scoring at least 0.2 that have no student partner are added back at a tiny floor score. Both sets go into the submission file.">
+<defs><marker id="arD" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker></defs>
+<rect x="20" y="30" width="200" height="64" rx="8" class="bx-student"/><text x="34" y="53" class="sb">Student boxes</text><text x="34" y="72" class="ss">all boxes scoring ≥ 0.01</text>
+<rect x="270" y="30" width="180" height="64" rx="8" class="bx"/><text x="284" y="53" class="sb">Keep score ≥ 0.2</text><text x="284" y="72" class="ss">1,029 boxes</text>
+<rect x="540" y="30" width="200" height="64" rx="8" class="bx"/><text x="554" y="53" class="sb">Boost if ≥ 0.35</text><text x="554" y="72" class="ss">pushed toward 1, max 0.98</text>
+<rect x="20" y="190" width="200" height="64" rx="8" class="bx-poison"/><text x="34" y="213" class="sb">Poisoned-model boxes</text><text x="34" y="232" class="ss">same 2,000 test images</text>
+<rect x="270" y="190" width="180" height="64" rx="8" class="bx"/><text x="284" y="213" class="sb">Pair boxes one-to-one</text><text x="284" y="232" class="ss">overlap IoU ≥ 0.45</text>
+<rect x="540" y="182" width="200" height="80" rx="8" class="bx-floor"/><text x="554" y="205" class="sb">Re-add at floor score ε</text><text x="554" y="224" class="ss">if its poisoned score ≥ 0.2</text><text x="554" y="241" class="ss">1,598 boxes</text>
+<rect x="810" y="100" width="170" height="92" rx="8" class="bx"/><text x="824" y="123" class="sb">Submission file</text><text x="824" y="142" class="ss">1,029 + 1,598 = 2,627</text><text x="824" y="159" class="ss">max 120 per image</text>
+<path d="M220,62 H269" class="ln" marker-end="url(#arD)"/>
+<path d="M450,62 H539" class="ln" marker-end="url(#arD)"/>
+<path d="M740,62 H775 V128 H809" class="ln" marker-end="url(#arD)"/>
+<path d="M360,94 V189" class="ln" marker-end="url(#arD)"/><text x="369" y="146" class="ss">kept boxes</text>
+<path d="M220,222 H269" class="ln" marker-end="url(#arD)"/>
+<path d="M450,222 H539" class="ln" marker-end="url(#arD)"/><text x="495" y="215" text-anchor="middle" class="ss">no partner</text>
+<path d="M740,222 H775 V166 H809" class="ln" marker-end="url(#arD)"/>
+<text x="360" y="276" text-anchor="middle" class="ss">paired: nothing added</text>
+</svg>
+    </div>
+    <figcaption>The recipe for attempt 7, with its box counts. Attempt 2 used only the top row. Attempts 4 and 6 used the same recipe on the six-run model (1,002 kept, 1,626 floored), with ε at 0.02 and 0.003.</figcaption>
+  </figure>
+  <div class="two">
+    <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
+      <h3>The boost</h3>
+      <p>A score <span class="mono">c</span> below 0.35 is left alone. At 0.35 and above it becomes:</p>
+      <div class="formula">c′ = 1 − 0.65 × ((1 − c) ÷ 0.65)<sup>1.5</sup>, at most 0.98</div>
+      <p>For example 0.50 becomes 0.56 and 0.80 becomes 0.89. Overshooting on a clean streak costs a tenth of undershooting.</p>
+      <h3>The two extra rules in attempt 5</h3>
+      <ul class="plain">
+        <li>The floor also covered poisoned-model boxes scoring 0.1 to 0.2, which raised the floored set to 2,854.</li>
+        <li>152 student boxes scoring 0.1 to 0.2 were added at their own score when they overlapped a poisoned-model box scoring 0.3 or more.</li>
+      </ul>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
+      <h3>Why a floor instead of deleting</h3>
+      <p>Take a poisoned-model box the student has dropped. Suppose the hidden clean model scores it <span class="mono">c</span>.</p>
+      <div class="tblwrap">
+        <table>
+          <thead><tr><th>The clean model…</th><th>Box deleted</th><th>Box kept at ε</th></tr></thead>
+          <tbody>
+            <tr><td>has it, and it is a poison streak</td><td>c</td><td>(c − ε) ÷ 10</td></tr>
+            <tr><td>has it, and it is a clean streak</td><td>c</td><td>c − ε</td></tr>
+            <tr><td>does not have it</td><td>0</td><td>at most ε</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Keeping the box never costs more than ε extra and can save nine-tenths of a miss. A smaller ε is cheaper in the last row, which is why 0.003 beat 0.02.</p>
+    </div>
+  </div>
+</section>
+
+<footer>Every number here comes from Kaggle's submission records, the four kernel logs, <code>kernel/train_kernel.py</code>, <code>scripts/combine_submission.py</code>, or the saved prediction files, checked on 12 November 2026. Attempts 4, 5, 6 and 7 were rebuilt from the saved predictions and match the sent files exactly. Times are UTC.</footer>
+</div>
+</body>
+</html>
