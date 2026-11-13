@@ -37,8 +37,10 @@ def match_prob(c_s):
 
     Anchored to what we can defend: retention analysis showed the student
     tracks the teacher closely on real objects (median |dconf| ~ 0.06), and
-    the floor A/B measured ~75% match rate even for suppressed boxes. Smooth
-    monotone ramp: ~0.55 at c_s=0.2 up to 0.97 for c_s >= 0.8.
+    the floor A/B was first read as a ~75% match rate for suppressed boxes.
+    That reading was wrong (corrected 2026-11-13: at most ~40%, see
+    docs/NOTES.md), so this ramp is probably too optimistic at the low end.
+    Smooth monotone ramp: ~0.55 at c_s=0.2 up to 0.97 for c_s >= 0.8.
     """
     return float(np.clip(0.55 + 0.7 * (c_s - 0.2), 0.05, 0.97))
 
