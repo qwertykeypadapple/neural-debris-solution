@@ -1,0 +1,529 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Neural Debris Winner Map</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap">
+<style>body{margin:0}</style>
+<style>
+/* Layout: one reading column. Problem first, then the stage map, then one section per step in the order the team applied them. */
+:root{
+  --bg:#f3f5f9; --surface:#ffffff; --fg:#152033; --muted:#566377; --line:#d5dbe4; --line-strong:#8793a6;
+  --poison:#b23a26; --poison-soft:#f9e5df;
+  --student:#0b7285; --student-soft:#daf0f4;
+  --floor:#6a4cc0; --floor-soft:#ece6fb;
+  --font-display:"Space Grotesk","Inter",system-ui,sans-serif;
+  --font-body:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0e141d; --surface:#161f2b; --fg:#e4eaf2; --muted:#9aa8ba; --line:#2a3545; --line-strong:#66758a;
+    --poison:#ee8a75; --poison-soft:#3b201b; --student:#4fc4dc; --student-soft:#11343d;
+    --floor:#b3a0f2; --floor-soft:#2b2447; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0e141d; --surface:#161f2b; --fg:#e4eaf2; --muted:#9aa8ba; --line:#2a3545; --line-strong:#66758a;
+  --poison:#ee8a75; --poison-soft:#3b201b; --student:#4fc4dc; --student-soft:#11343d;
+  --floor:#b3a0f2; --floor-soft:#2b2447; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.6 var(--font-body);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px;margin:0 auto;padding-block:36px 72px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:44px}
+header,section{display:flex;flex-direction:column;gap:16px;min-width:0}
+h1,h2,h3{font-family:var(--font-display);font-weight:600;margin:0;text-wrap:balance;letter-spacing:-0.01em}
+h1{font-size:32px;line-height:1.15}
+h2{font-size:22px;line-height:1.25}
+h3{font-size:16px;line-height:1.3}
+p{margin:0;max-width:70ch}
+a{color:var(--student)}
+a:focus-visible{outline:2px solid var(--student);outline-offset:2px}
+.eyebrow{font:500 12px/1.5 var(--font-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.lead{font-size:16.5px}
+.muted{color:var(--muted)}
+.small{font-size:13.5px}
+code,.mono{font-family:var(--font-mono);font-size:.92em}
+.refs{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:0;margin:0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.refs div{padding:12px 16px 12px 0}
+.refs dt{font-size:12.5px;color:var(--muted)}
+.refs dd{margin:2px 0 0;font:600 20px/1.2 var(--font-display);font-variant-numeric:tabular-nums}
+.refs dd small{font:400 12.5px var(--font-body);color:var(--muted)}
+figure{margin:0;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px;min-width:0}
+.scroll{overflow-x:auto}
+svg{display:block;width:100%;height:auto}
+.w940{min-width:940px}.w900{min-width:860px}
+figcaption{margin-top:12px;color:var(--muted);font-size:13.5px;line-height:1.55;max-width:80ch}
+svg text{font-family:var(--font-body);fill:var(--fg)}
+.st{font-size:12.5px}.sb{font-size:13px;font-weight:600}.ss{font-size:12px;fill:var(--muted)}.sx{font-size:11px;fill:var(--muted)}
+.sh{font:500 11px var(--font-mono);letter-spacing:.08em;fill:var(--muted)}
+.num{font-variant-numeric:tabular-nums}
+text.dim{fill:var(--muted);font-weight:400}
+.ln{fill:none;stroke:var(--fg);stroke-width:1.3}.ah{fill:var(--fg)}
+.ln-up{fill:none;stroke:var(--student);stroke-width:2}.ah-up{fill:var(--student)}
+.rule{stroke:var(--line);stroke-width:1}.axis{stroke:var(--line-strong);stroke-width:1;fill:none}
+.bx{fill:var(--surface);stroke:var(--line-strong);stroke-width:1.2}
+.bx-poison{fill:var(--poison-soft);stroke:var(--poison);stroke-width:1.2}
+.bx-student{fill:var(--student-soft);stroke:var(--student);stroke-width:1.2}
+.chip{fill:var(--surface);stroke:var(--line);stroke-width:1}
+.chip-down{fill:var(--poison-soft);stroke:var(--poison);stroke-width:1.2}
+.chip-up{fill:var(--student-soft);stroke:var(--student);stroke-width:1.2}
+.chip-mix{fill:var(--surface);stroke:var(--line-strong);stroke-width:1.2}
+.ct{font-size:12.5px}.ct.on{font-weight:600}
+.cnum{fill:var(--surface);stroke:var(--fg);stroke-width:1.3}.cnum.fin{fill:var(--student);stroke:var(--student)}
+.cnum-t{font:600 14px var(--font-display)}.cnum-t.fin{fill:var(--bg)}
+.bar-pub{fill:var(--student)}.bar-g{fill:var(--student)}.bar-p{fill:var(--poison)}
+.seed{fill:var(--student-soft);stroke:var(--student);stroke-width:1.3}
+.sky{fill:var(--bg)}.star{fill:var(--fg);opacity:.35}
+.gbox{fill:none;stroke:var(--student);stroke-width:1.6}.pboxr{fill:none;stroke:var(--poison);stroke-width:1.6}
+.pdot{fill:var(--poison)}.pstreak{stroke:var(--poison);stroke-width:3.5;stroke-linecap:round}
+.faint{stroke:var(--fg);stroke-width:1.6;opacity:.45;stroke-linecap:round}
+.sq{fill:var(--surface);stroke:var(--line-strong);stroke-width:1}.sq.on{fill:var(--student);stroke:var(--student)}
+.track{fill:var(--line)}.track-fill{fill:var(--poison)}
+.glyph{fill:none;stroke:var(--fg);stroke-width:1.6;stroke-linecap:round}
+.plot{fill:var(--bg);stroke:var(--line);stroke-width:1}.base{stroke:var(--line-strong);stroke-width:1;stroke-dasharray:4 3}
+.curve-g{fill:none;stroke:var(--student);stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round}
+.curve-p{fill:none;stroke:var(--poison);stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round}
+.dot-low{fill:var(--surface);stroke:var(--fg);stroke-width:1.6}.dot-clean{fill:var(--fg)}.dot-teach{fill:var(--student)}
+text.t-retain{fill:var(--student)}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;align-items:start}
+@media (max-width:760px){.two{grid-template-columns:minmax(0,1fr)} h1{font-size:26px}}
+.gloss{margin:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px 28px}
+.gloss div{min-width:0}
+.gloss dt{font-weight:600;font-size:14px}
+.gloss dd{margin:0;font-size:14px;color:var(--muted);line-height:1.5}
+.tblwrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums}
+th,td{padding:9px 14px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+th{font-weight:600;font-size:12.5px;color:var(--muted)}
+ul.plain,ol.plain{margin:0;padding-left:20px;max-width:75ch}
+ul.plain li,ol.plain li{margin:4px 0}
+.stagetag{font:500 12px/1.5 var(--font-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+footer{color:var(--muted);font-size:13px;border-top:1px solid var(--line);padding-top:16px}
+footer p{max-width:85ch}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="eyebrow">ESA Neural Debris Removal · Kaggle · 1st place: team MALTO</div>
+  <h1>Neural Debris winner map</h1>
+  <p class="lead">How the first-place team got from a poisoned detector to the best score in the competition, one step at a time and in plain words. Every fact and score here comes from the team's own <a href="https://www.kaggle.com/competitions/neural-debris-removal-in-streak-detection-models/writeups/1st-place-solution" target="_blank" rel="noopener">public write-up</a>.</p>
+  <dl class="refs">
+    <div><dt>Poisoned model, as handed out</dt><dd>378.02</dd></div>
+    <div><dt>Empty file</dt><dd>284.20</dd></div>
+    <div><dt>Their starting file</dt><dd>164.82</dd></div>
+    <div><dt>Their final file</dt><dd>130.56 <small>public · 178.66 private · 1st of 567</small></dd></div>
+  </dl>
+  <p class="muted small">Scores are maCADD, explained just below. Lower is better. The first three numbers are public-board scores.</p>
+</header>
+
+<section>
+  <h2>The problem in one minute</h2>
+  <p>A detector is a model that looks at a night-sky image and draws a box around every streak it finds. Each box comes with a confidence, a number from 0 to 1 that says how sure the model is.</p>
+  <p>The detector in this competition was poisoned. During its training, someone slipped in fake streak patterns and told the model they were real, so it learned to box those too. Teams received the poisoned model, 20 images showing the fake pattern, and 2,000 test images with no answers. The organisers kept one thing hidden: a clean model trained without the poison.</p>
+  <figure>
+    <div class="scroll">
+<svg class="w900" viewBox="0 0 1000 280" role="img" aria-label="A test image with four boxes. The poisoned model is confident about all four. The hidden clean model is confident about the two genuine streaks only. Made-up numbers.">
+<defs><marker id="arP" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker></defs>
+<text x="20" y="24" class="sh">ONE TEST IMAGE</text>
+<text x="380" y="24" class="sh">POISONED MODEL SAYS</text>
+<text x="700" y="24" class="sh">HIDDEN CLEAN MODEL SAYS</text>
+<rect x="20" y="40" width="300" height="220" rx="8" class="sky"/>
+<circle cx="40" cy="60" r="1.8" class="star"/>
+<circle cx="170" cy="150" r="2.2" class="star"/>
+<circle cx="300" cy="110" r="1.6" class="star"/>
+<circle cx="120" cy="240" r="1.8" class="star"/>
+<circle cx="255" cy="150" r="1.5" class="star"/>
+<circle cx="290" cy="240" r="2" class="star"/>
+<rect x="50" y="70" width="110" height="40" class="gbox"/><line x1="58" y1="100" x2="152" y2="80" class="faint"/><text x="50" y="64" class="sb">A</text>
+<rect x="190" y="180" width="100" height="36" class="gbox"/><line x1="198" y1="206" x2="282" y2="190" class="faint"/><text x="190" y="174" class="sb">B</text>
+<rect x="200" y="70" width="80" height="40" class="pboxr"/><circle cx="212" cy="98" r="3" class="pdot"/><circle cx="228" cy="92" r="3" class="pdot"/><circle cx="244" cy="86" r="3" class="pdot"/><circle cx="260" cy="80" r="3" class="pdot"/><text x="200" y="64" class="sb">C</text>
+<rect x="60" y="170" width="70" height="44" class="pboxr"/><line x1="72" y1="202" x2="118" y2="182" class="pstreak"/><text x="60" y="164" class="sb">D</text>
+<path d="M324,150 H368" class="ln" marker-end="url(#arP)"/>
+<text x="380" y="84" class="sb">A</text>
+<rect x="410" y="70" width="164" height="18" rx="3" class="bar-g"/><text x="582" y="84" class="st num">0.82</text>
+<text x="700" y="84" class="sb">A</text>
+<rect x="730" y="70" width="170" height="18" rx="3" class="bar-g"/><text x="908" y="84" class="st num">0.85</text>
+<text x="380" y="132" class="sb">B</text>
+<rect x="410" y="118" width="82" height="18" rx="3" class="bar-g"/><text x="500" y="132" class="st num">0.41</text>
+<text x="700" y="132" class="sb">B</text>
+<rect x="730" y="118" width="90" height="18" rx="3" class="bar-g"/><text x="828" y="132" class="st num">0.45</text>
+<text x="380" y="180" class="sb">C</text>
+<rect x="410" y="166" width="154" height="18" rx="3" class="bar-p"/><text x="572" y="180" class="st num">0.77</text>
+<text x="700" y="180" class="sb">C</text>
+<text x="730" y="180" class="ss">no box at all</text>
+<text x="380" y="228" class="sb">D</text>
+<rect x="410" y="214" width="110" height="18" rx="3" class="bar-p"/><text x="528" y="228" class="st num">0.55</text>
+<text x="700" y="228" class="sb">D</text>
+<rect x="730" y="214" width="50" height="18" rx="3" class="bar-p"/><text x="788" y="228" class="st num">0.25</text>
+<text x="380" y="262" class="ss">teal = genuine streak · red = poison pattern</text>
+</svg>
+    </div>
+    <figcaption>A made-up example. The poisoned model is confident about all four boxes. The clean model is confident only about the genuine streaks A and B; it has no box for C and only a weak one for D. A team's file is scored by adding up the gaps between its list and the hidden clean list.</figcaption>
+  </figure>
+  <h3>Words used on this page</h3>
+  <dl class="gloss">
+    <div><dt>Box</dt><dd>A rectangle the model draws around something it thinks is a streak.</dd></div>
+    <div><dt>Confidence</dt><dd>A number from 0 to 1 attached to each box. Higher means more sure.</dd></div>
+    <div><dt>Poison</dt><dd>The fake streak patterns the model was wrongly taught to box.</dd></div>
+    <div><dt>Teacher</dt><dd>The poisoned model exactly as it was handed out.</dd></div>
+    <div><dt>Committee</dt><dd>The team's 14 retrained copies of the model, used as voters.</dd></div>
+    <div><dt>Demote</dt><dd>Push a box's confidence down to almost zero.</dd></div>
+    <div><dt>Rescue, restore</dt><dd>Raise a box's confidence back up.</dd></div>
+    <div><dt>maCADD</dt><dd>The competition score: the total gap between a submitted list of boxes and the hidden clean model's list.</dd></div>
+  </dl>
+</section>
+
+<section>
+  <h2>The winning idea</h2>
+  <p>The team stopped trying to build a perfectly repaired model. They asked a narrower question: the poisoned model has already proposed a set of boxes, so how much confidence would the clean model give each one?</p>
+  <p>That turned the task into adjusting one number per box. Every box in their final file comes from the poisoned model, run with a low bar so that it proposes plenty of candidates. From there the rules were strict:</p>
+  <ul class="plain">
+    <li>No new boxes are ever added.</li>
+    <li>No box is ever moved or resized.</li>
+    <li>Only the confidence of a box can change, down or up.</li>
+  </ul>
+  <p>They had a reason for the second rule. An earlier experiment that nudged box positions made the public score 9.15 points worse, which suggested the clean model draws its boxes in much the same places as the poisoned one.</p>
+</section>
+
+<section>
+  <h2>The seven stages</h2>
+  <figure>
+    <div class="scroll">
+<svg class="w940" viewBox="0 0 1040 492" role="img" aria-label="Seven stages of the winning pipeline in order, with the kind of evidence each one used, whether it lowered or raised confidence, and the public score after it: 164.82, 147.68, 144.02, 136.08, about 134.00, 133.88 and 130.56.">
+<defs><marker id="arS" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker></defs>
+<text x="10" y="82" class="sb">Stage</text>
+<text x="10" y="132" class="sb">Evidence from</text>
+<text x="10" y="174" class="sb">Confidence moves</text>
+<text x="10" y="216" class="sb">Public score</text>
+<text x="10" y="468" class="sb">Change</text>
+<text x="10" y="234" class="ss">lower is better</text>
+<line x1="160" y1="440" x2="1032" y2="440" class="axis"/><text x="152" y="444" class="sx num" text-anchor="end">0</text>
+<line x1="160" y1="370" x2="1032" y2="370" class="rule"/><text x="152" y="374" class="sx num" text-anchor="end">50</text>
+<line x1="160" y1="300" x2="1032" y2="300" class="rule"/><text x="152" y="304" class="sx num" text-anchor="end">100</text>
+<line x1="160" y1="230" x2="1032" y2="230" class="rule"/><text x="152" y="234" class="sx num" text-anchor="end">150</text>
+<circle cx="218" cy="34" r="15" class="cnum"/><text x="218" y="39" text-anchor="middle" class="cnum-t">1</text>
+<path d="M237,34 H325" class="ln" marker-end="url(#arS)"/>
+<text x="218" y="74" text-anchor="middle" class="st">Starting file</text>
+<text x="218" y="90" text-anchor="middle" class="st">from 7 models</text>
+<rect x="160" y="110" width="116" height="34" rx="6" class="chip"/><text x="218" y="132" text-anchor="middle" class="ct">models</text>
+<rect x="160" y="152" width="116" height="34" rx="6" class="chip-mix"/><text x="218" y="174" text-anchor="middle" class="ct on">start</text>
+<rect x="188" y="209.3" width="60" height="230.7" class="bar-pub"/><text x="218" y="203.3" text-anchor="middle" class="sb num">164.82</text>
+<text x="218" y="468" text-anchor="middle" class="sb num dim">start</text>
+<circle cx="344" cy="34" r="15" class="cnum"/><text x="344" y="39" text-anchor="middle" class="cnum-t">2</text>
+<path d="M363,34 H451" class="ln" marker-end="url(#arS)"/>
+<text x="344" y="74" text-anchor="middle" class="st">Committee</text>
+<text x="344" y="90" text-anchor="middle" class="st">veto</text>
+<rect x="286" y="110" width="116" height="34" rx="6" class="chip"/><text x="344" y="132" text-anchor="middle" class="ct">models</text>
+<rect x="286" y="152" width="116" height="34" rx="6" class="chip-down"/><text x="344" y="174" text-anchor="middle" class="ct on">↓ down</text>
+<rect x="314" y="233.2" width="60" height="206.8" class="bar-pub"/><text x="344" y="227.2" text-anchor="middle" class="sb num">147.68</text>
+<text x="344" y="468" text-anchor="middle" class="sb num">−17.14</text>
+<circle cx="470" cy="34" r="15" class="cnum"/><text x="470" y="39" text-anchor="middle" class="cnum-t">3</text>
+<path d="M489,34 H577" class="ln" marker-end="url(#arS)"/>
+<text x="470" y="74" text-anchor="middle" class="st">Wider veto</text>
+<text x="470" y="90" text-anchor="middle" class="st">+ rescue</text>
+<rect x="412" y="110" width="116" height="34" rx="6" class="chip"/><text x="470" y="132" text-anchor="middle" class="ct">models</text>
+<rect x="412" y="152" width="116" height="34" rx="6" class="chip-mix"/><text x="470" y="174" text-anchor="middle" class="ct on">↓ down, ↑ up</text>
+<rect x="440" y="238.4" width="60" height="201.6" class="bar-pub"/><text x="470" y="232.4" text-anchor="middle" class="sb num">144.02</text>
+<text x="470" y="468" text-anchor="middle" class="sb num">−3.66</text>
+<circle cx="596" cy="34" r="15" class="cnum"/><text x="596" y="39" text-anchor="middle" class="cnum-t">4</text>
+<path d="M615,34 H703" class="ln" marker-end="url(#arS)"/>
+<text x="596" y="74" text-anchor="middle" class="st">Dotted-chain</text>
+<text x="596" y="90" text-anchor="middle" class="st">pixel test</text>
+<rect x="538" y="110" width="116" height="34" rx="6" class="chip"/><text x="596" y="132" text-anchor="middle" class="ct">pixels</text>
+<rect x="538" y="152" width="116" height="34" rx="6" class="chip-down"/><text x="596" y="174" text-anchor="middle" class="ct on">↓ down</text>
+<rect x="566" y="249.5" width="60" height="190.5" class="bar-pub"/><text x="596" y="243.5" text-anchor="middle" class="sb num">136.08</text>
+<text x="596" y="468" text-anchor="middle" class="sb num">−7.94</text>
+<circle cx="722" cy="34" r="15" class="cnum"/><text x="722" y="39" text-anchor="middle" class="cnum-t">5</text>
+<path d="M741,34 H829" class="ln" marker-end="url(#arS)"/>
+<text x="722" y="74" text-anchor="middle" class="st">Four more</text>
+<text x="722" y="90" text-anchor="middle" class="st">pixel tests</text>
+<rect x="664" y="110" width="116" height="34" rx="6" class="chip"/><text x="722" y="132" text-anchor="middle" class="ct">pixels</text>
+<rect x="664" y="152" width="116" height="34" rx="6" class="chip-down"/><text x="722" y="174" text-anchor="middle" class="ct on">↓ down</text>
+<rect x="692" y="252.4" width="60" height="187.6" class="bar-pub"/><text x="722" y="246.4" text-anchor="middle" class="sb num">≈134.00</text>
+<text x="722" y="468" text-anchor="middle" class="sb num">≈ −2.08</text>
+<circle cx="848" cy="34" r="15" class="cnum"/><text x="848" y="39" text-anchor="middle" class="cnum-t">6</text>
+<path d="M867,34 H955" class="ln" marker-end="url(#arS)"/>
+<text x="848" y="74" text-anchor="middle" class="st">Two strict</text>
+<text x="848" y="90" text-anchor="middle" class="st">demotions</text>
+<rect x="790" y="110" width="116" height="34" rx="6" class="chip"/><text x="848" y="132" text-anchor="middle" class="ct">pixels + models</text>
+<rect x="790" y="152" width="116" height="34" rx="6" class="chip-down"/><text x="848" y="174" text-anchor="middle" class="ct on">↓ down</text>
+<rect x="818" y="252.6" width="60" height="187.4" class="bar-pub"/><text x="848" y="246.6" text-anchor="middle" class="sb num">133.88</text>
+<text x="848" y="468" text-anchor="middle" class="sb num">≈ −0.12</text>
+<circle cx="974" cy="34" r="15" class="cnum fin"/><text x="974" y="39" text-anchor="middle" class="cnum-t fin">7</text>
+<text x="974" y="74" text-anchor="middle" class="st">Give confidence</text>
+<text x="974" y="90" text-anchor="middle" class="st">back</text>
+<rect x="916" y="110" width="116" height="34" rx="6" class="chip"/><text x="974" y="132" text-anchor="middle" class="ct">score rule</text>
+<rect x="916" y="152" width="116" height="34" rx="6" class="chip-up"/><text x="974" y="174" text-anchor="middle" class="ct on">↑ up</text>
+<rect x="944" y="257.2" width="60" height="182.8" class="bar-pub"/><text x="974" y="251.2" text-anchor="middle" class="sb num">130.56</text>
+<text x="974" y="468" text-anchor="middle" class="sb num">−3.32</text>
+</svg>
+    </div>
+    <figcaption>Each column is one stage, applied on top of the one before it. The first three stages ask retrained models for their opinion. The next three look directly at the pixels. The last one uses a quirk of the scoring rule. The score for stage 5 is given as approximate in the write-up, so the changes for stages 5 and 6 are approximate too.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <div class="stagetag">Before stage 1</div>
+  <h2>Step 1: train 14 repaired copies</h2>
+  <p>To make a model forget the poison, you show it the poison and tell it to stop. The danger is that it also forgets what a real streak looks like. A model needs examples of what to keep, and the organisers gave none.</p>
+  <p>So the team built their own. They drew realistic synthetic streaks, brought in labelled photos of real streaks from a public dataset, and made each retrained model copy the teacher on clean parts of the image. Starting from the poisoned model every time, they trained 14 copies using four different recipes.</p>
+  <figure>
+    <div class="scroll">
+<svg class="w900" viewBox="0 0 1000 300" role="img" aria-label="Four kinds of training material feed retraining that always starts from the poisoned model. The result is fourteen retrained models in four families: one short repair run, nine full retrains with different seeds, three full retrains with changed settings, and one longer run.">
+<defs><marker id="arT" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker></defs>
+<text x="20" y="24" class="sh">WHAT THEY TRAINED ON</text><text x="380" y="24" class="sh">STARTING POINT</text><text x="660" y="24" class="sh">14 MODELS IN 4 FAMILIES</text>
+<rect x="20" y="40" width="280" height="50" rx="8" class="bx-poison"/><text x="34" y="63" class="sb">20 poison examples</text>
+<text x="34" y="80" class="ss">what to forget (from the organisers)</text><path d="M300,65 H340" class="ln"/>
+<rect x="20" y="102" width="280" height="50" rx="8" class="bx"/><text x="34" y="125" class="sb">Drawn synthetic streaks</text>
+<text x="34" y="142" class="ss">realistic streaks painted onto images</text><path d="M300,127 H340" class="ln"/>
+<rect x="20" y="164" width="280" height="50" rx="8" class="bx"/><text x="34" y="187" class="sb">Real streak photos</text>
+<text x="34" y="204" class="ss">labelled, from the LIST/Stellina set</text><path d="M300,189 H340" class="ln"/>
+<rect x="20" y="226" width="280" height="50" rx="8" class="bx"/><text x="34" y="249" class="sb">Copy the teacher on clean areas</text>
+<text x="34" y="266" class="ss">so normal behaviour stays put</text><path d="M300,251 H340" class="ln"/>
+<path d="M340,65 V251" class="ln"/><path d="M340,158 H379" class="ln" marker-end="url(#arT)"/>
+<rect x="380" y="123" width="200" height="70" rx="8" class="bx-poison"/><text x="394" y="146" class="sb">The poisoned model</text><text x="394" y="165" class="ss">every run starts here</text>
+<path d="M580,158 H620" class="ln"/><path d="M620,78 V270" class="ln"/>
+<text x="660" y="56" class="st">Short repair run · 1 model</text><path d="M620,78 H651" class="ln" marker-end="url(#arT)"/>
+<circle cx="670" cy="78" r="9" class="seed"/>
+<text x="660" y="120" class="st">Full retrain · 9 different seeds</text><path d="M620,142 H651" class="ln" marker-end="url(#arT)"/>
+<circle cx="670" cy="142" r="9" class="seed"/>
+<circle cx="694" cy="142" r="9" class="seed"/>
+<circle cx="718" cy="142" r="9" class="seed"/>
+<circle cx="742" cy="142" r="9" class="seed"/>
+<circle cx="766" cy="142" r="9" class="seed"/>
+<circle cx="790" cy="142" r="9" class="seed"/>
+<circle cx="814" cy="142" r="9" class="seed"/>
+<circle cx="838" cy="142" r="9" class="seed"/>
+<circle cx="862" cy="142" r="9" class="seed"/>
+<text x="660" y="184" class="st">Full retrain, changed settings · 3</text><path d="M620,206 H651" class="ln" marker-end="url(#arT)"/>
+<circle cx="670" cy="206" r="9" class="seed"/>
+<circle cx="694" cy="206" r="9" class="seed"/>
+<circle cx="718" cy="206" r="9" class="seed"/>
+<text x="660" y="248" class="st">Longer run · 1 model</text><path d="M620,270 H651" class="ln" marker-end="url(#arT)"/>
+<circle cx="670" cy="270" r="9" class="seed"/>
+</svg>
+    </div>
+    <figcaption>Each circle is one retrained model. Models made by the same recipe think alike, so the team grouped them into four families. That way the nine near-identical copies in the second family cannot outvote the others just by being many.</figcaption>
+  </figure>
+  <p class="muted small">One disclosure from the write-up: the full-retrain runs also used the unlabelled test images in a limited way. Training matched overall statistics of the model's internal features, averaged over each whole image. No boxes, labels or confidences from test images were used.</p>
+</section>
+
+<section>
+  <div class="stagetag">Before stage 1</div>
+  <h2>Step 2: collect four kinds of evidence for every box</h2>
+  <p>The 14 models are never merged into one. They are kept apart and treated as a committee. For each candidate box, the team recorded four measurements and saved them.</p>
+  <figure>
+    <div class="scroll">
+<svg class="w900" viewBox="0 0 1000 196" role="img" aria-label="Four kinds of evidence collected for each box: how many of the 14 models still detect it, how many of the 4 families back it, how strongly retraining pushed it down, and whether it is still detected when the image is rotated or flipped into its 8 views.">
+<rect x="20" y="16" width="225" height="164" rx="8" class="bx"/><text x="34" y="42" class="sb">Model votes</text>
+<text x="34" y="64" class="ss">How many of the 14 retrained</text>
+<text x="34" y="81" class="ss">models still detect this box?</text>
+<rect x="34" y="134" width="11" height="22" rx="2" class="sq on"/>
+<rect x="48" y="134" width="11" height="22" rx="2" class="sq on"/>
+<rect x="62" y="134" width="11" height="22" rx="2" class="sq on"/>
+<rect x="76" y="134" width="11" height="22" rx="2" class="sq on"/>
+<rect x="90" y="134" width="11" height="22" rx="2" class="sq on"/>
+<rect x="104" y="134" width="11" height="22" rx="2" class="sq on"/>
+<rect x="118" y="134" width="11" height="22" rx="2" class="sq on"/>
+<rect x="132" y="134" width="11" height="22" rx="2" class="sq on"/>
+<rect x="146" y="134" width="11" height="22" rx="2" class="sq on"/>
+<rect x="160" y="134" width="11" height="22" rx="2" class="sq on"/>
+<rect x="174" y="134" width="11" height="22" rx="2" class="sq on"/>
+<rect x="188" y="134" width="11" height="22" rx="2" class="sq"/>
+<rect x="202" y="134" width="11" height="22" rx="2" class="sq"/>
+<rect x="216" y="134" width="11" height="22" rx="2" class="sq"/>
+<rect x="265" y="16" width="225" height="164" rx="8" class="bx"/><text x="279" y="42" class="sb">Family votes</text>
+<text x="279" y="64" class="ss">How many of the 4 families</text>
+<text x="279" y="81" class="ss">back it? Nine near-identical</text>
+<text x="279" y="98" class="ss">models count as one voice.</text>
+<rect x="279" y="134" width="22" height="22" rx="3" class="sq on"/>
+<rect x="309" y="134" width="22" height="22" rx="3" class="sq on"/>
+<rect x="339" y="134" width="22" height="22" rx="3" class="sq on"/>
+<rect x="369" y="134" width="22" height="22" rx="3" class="sq"/>
+<rect x="510" y="16" width="225" height="164" rx="8" class="bx"/><text x="524" y="42" class="sb">Suppression evidence</text>
+<text x="524" y="64" class="ss">How hard did retraining push</text>
+<text x="524" y="81" class="ss">it down, compared with the</text>
+<text x="524" y="98" class="ss">poisoned model? (p_poison)</text>
+<rect x="524" y="136" width="197" height="8" rx="4" class="track"/><rect x="524" y="136" width="58" height="8" rx="4" class="track-fill"/><text x="524" y="162" class="sx">little</text><text x="721" y="162" class="sx" text-anchor="end">a lot</text>
+<rect x="755" y="16" width="225" height="164" rx="8" class="bx"/><text x="769" y="42" class="sb">Stability votes</text>
+<text x="769" y="64" class="ss">Is it still detected when the</text>
+<text x="769" y="81" class="ss">image is rotated or flipped?</text>
+<text x="769" y="98" class="ss">8 views, checked by 7 models.</text>
+<rect x="769" y="134" width="20" height="20" rx="2" class="sq"/><path d="M6,4 V16 M6,4 H14 M6,10 H11" class="glyph" transform="translate(769,134) rotate(0 10 10)"/>
+<rect x="793" y="134" width="20" height="20" rx="2" class="sq"/><path d="M6,4 V16 M6,4 H14 M6,10 H11" class="glyph" transform="translate(793,134) rotate(90 10 10)"/>
+<rect x="817" y="134" width="20" height="20" rx="2" class="sq"/><path d="M6,4 V16 M6,4 H14 M6,10 H11" class="glyph" transform="translate(817,134) rotate(180 10 10)"/>
+<rect x="841" y="134" width="20" height="20" rx="2" class="sq"/><path d="M6,4 V16 M6,4 H14 M6,10 H11" class="glyph" transform="translate(841,134) rotate(270 10 10)"/>
+<rect x="865" y="134" width="20" height="20" rx="2" class="sq"/><path d="M6,4 V16 M6,4 H14 M6,10 H11" class="glyph" transform="translate(885,134) scale(-1,1) rotate(0 10 10)"/>
+<rect x="889" y="134" width="20" height="20" rx="2" class="sq"/><path d="M6,4 V16 M6,4 H14 M6,10 H11" class="glyph" transform="translate(909,134) scale(-1,1) rotate(90 10 10)"/>
+<rect x="913" y="134" width="20" height="20" rx="2" class="sq"/><path d="M6,4 V16 M6,4 H14 M6,10 H11" class="glyph" transform="translate(933,134) scale(-1,1) rotate(180 10 10)"/>
+<rect x="937" y="134" width="20" height="20" rx="2" class="sq"/><path d="M6,4 V16 M6,4 H14 M6,10 H11" class="glyph" transform="translate(957,134) scale(-1,1) rotate(270 10 10)"/>
+</svg>
+    </div>
+    <figcaption>The filled squares and the meter are an illustration for one imaginary box. The last card shows the eight ways a square image can be rotated or flipped. A genuine detection should survive all of them.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <div class="stagetag">Stages 1 to 3 · 164.82 → 144.02</div>
+  <h2>Step 3: let the committee vote</h2>
+  <p>The <strong>starting file</strong> (stage 1) came from seven of the retrained models. For each box it took the most generous opinion among them, so one model that still believed in a box could protect it from the rest. That file scored 164.82.</p>
+  <p>Then the full committee of 14 went over it. In <strong>stage 2</strong>, boxes with little support were demoted. This was the biggest single gain of the whole effort, 17.14 points. In <strong>stage 3</strong>, the veto was widened and a rescue rule was added for boxes that had sunk too low but were still strongly backed.</p>
+  <figure>
+    <div class="scroll">
+<svg class="w900" viewBox="0 0 1000 250" role="img" aria-label="Decision for one box. If the committee gives it little support, it is demoted to a confidence of 0.01. If it had dropped out of sight but is strongly backed and the teacher originally saw it, it is rescued up to a capped committee value. Otherwise it is left unchanged.">
+<defs><marker id="arC" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker></defs>
+<rect x="20" y="40" width="210" height="64" rx="8" class="bx"/><text x="34" y="63" class="sb">One candidate box</text><text x="34" y="82" class="ss">with its confidence so far</text>
+<rect x="290" y="40" width="220" height="64" rx="8" class="bx"/><text x="304" y="63" class="sb">Little committee support?</text><text x="304" y="82" class="ss">few model and family votes</text>
+<rect x="570" y="40" width="220" height="64" rx="8" class="bx"/><text x="584" y="63" class="sb">Out of sight, but backed?</text><text x="584" y="82" class="ss">strong quorum, teacher saw it</text>
+<rect x="850" y="40" width="130" height="64" rx="8" class="bx"/><text x="864" y="63" class="sb">Leave it</text><text x="864" y="82" class="ss">unchanged</text>
+<rect x="290" y="160" width="220" height="64" rx="8" class="bx-poison"/><text x="304" y="183" class="sb">Demote to 0.01</text><text x="304" y="202" class="ss">kept, but nearly silent</text>
+<rect x="570" y="160" width="220" height="64" rx="8" class="bx-student"/><text x="584" y="183" class="sb">Rescue: raise it</text><text x="584" y="202" class="ss">to a capped committee value</text>
+<path d="M230,72 H289" class="ln" marker-end="url(#arC)"/>
+<path d="M510,72 H569" class="ln" marker-end="url(#arC)"/><text x="540" y="65" text-anchor="middle" class="ss">no</text>
+<path d="M790,72 H849" class="ln" marker-end="url(#arC)"/><text x="820" y="65" text-anchor="middle" class="ss">no</text>
+<path d="M400,104 V159" class="ln" marker-end="url(#arC)"/><text x="409" y="136" class="ss">yes</text>
+<path d="M680,104 V159" class="ln" marker-end="url(#arC)"/><text x="689" y="136" class="ss">yes</text>
+</svg>
+    </div>
+    <figcaption>What happens to one box. A demoted box is not deleted. It stays in the file at a confidence of 0.01, which costs almost nothing if the clean model has no such box and saves a lot if it does.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <div class="stagetag">Stages 4 to 6 · 144.02 → 133.88</div>
+  <h2>Step 4: check the pixels</h2>
+  <p>Voting has a blind spot. If every retrained model is fooled by the same poison pattern, they all vote to keep it. To catch those, the team added evidence that does not come from any model. They measured brightness along each candidate streak and looked for shapes that a real moving object would not produce.</p>
+  <figure>
+    <div class="scroll">
+<svg class="w900" viewBox="0 0 1000 214" role="img" aria-label="Six sketches of brightness measured along a streak. A genuine streak is one continuous hump. The five poison shapes the pixel tests look for are: bright points with dark gaps, a short flat-topped ridge, an evenly spaced train of equal points, a ramp ending in a compact head, and a comb of five regular teeth.">
+<text x="20" y="24" class="sh">GENUINE</text><text x="183" y="24" class="sh">POISON SHAPES THE PIXEL TESTS LOOK FOR</text>
+<g transform="translate(20,0)"><rect x="0" y="36" width="150" height="100" rx="6" class="plot"/><line x1="8" y1="124" x2="142" y2="124" class="base"/>
+<path d="M10,124 C24,124 28,92 46,88 S70,96 86,90 S112,84 122,94 S132,124 140,124" class="curve-g"/>
+<text x="0" y="158" class="sb">Genuine streak</text>
+<text x="0" y="176" class="ss">one continuous hump,</text>
+<text x="0" y="192" class="ss">brightness may wobble</text>
+</g>
+<g transform="translate(183,0)"><rect x="0" y="36" width="150" height="100" rx="6" class="plot"/><line x1="8" y1="124" x2="142" y2="124" class="base"/>
+<polyline points="10,124 22,124 28,70 34,124 52,124 58,62 64,124 78,124 84,78 90,124 112,124 118,66 124,124 140,124" class="curve-p"/>
+<text x="0" y="158" class="sb">Dotted chain</text>
+<text x="0" y="176" class="ss">bright points with</text>
+<text x="0" y="192" class="ss">dark gaps between</text>
+</g>
+<g transform="translate(346,0)"><rect x="0" y="36" width="150" height="100" rx="6" class="plot"/><line x1="8" y1="124" x2="142" y2="124" class="base"/>
+<polyline points="10,124 50,124 56,58 94,58 100,124 140,124" class="curve-p"/>
+<text x="0" y="158" class="sb">Flat-topped ridge</text>
+<text x="0" y="176" class="ss">short, bright,</text>
+<text x="0" y="192" class="ss">unusually flat on top</text>
+</g>
+<g transform="translate(509,0)"><rect x="0" y="36" width="150" height="100" rx="6" class="plot"/><line x1="8" y1="124" x2="142" y2="124" class="base"/>
+<polyline points="10,124 20,124 25,66 30,124 40,124 45,66 50,124 60,124 65,66 70,124 80,124 85,66 90,124 100,124 105,66 110,124 120,124 125,66 130,124 140,124" class="curve-p"/>
+<text x="0" y="158" class="sb">Even point train</text>
+<text x="0" y="176" class="ss">evenly spaced points,</text>
+<text x="0" y="192" class="ss">almost equal height</text>
+</g>
+<g transform="translate(672,0)"><rect x="0" y="36" width="150" height="100" rx="6" class="plot"/><line x1="8" y1="124" x2="142" y2="124" class="base"/>
+<polyline points="10,124 30,124 100,96 108,60 116,60 122,124 140,124" class="curve-p"/>
+<text x="0" y="158" class="sb">Head on a ramp</text>
+<text x="0" y="176" class="ss">brightness ramps up,</text>
+<text x="0" y="192" class="ss">ends in a compact head</text>
+</g>
+<g transform="translate(835,0)"><rect x="0" y="36" width="150" height="100" rx="6" class="plot"/><line x1="8" y1="124" x2="142" y2="124" class="base"/>
+<polyline points="10,124 20,124 24,104 28,104 28,70 38,70 38,104 48,104 48,70 58,70 58,104 68,104 68,70 78,70 78,104 88,104 88,70 98,70 98,104 108,104 108,70 118,70 118,104 124,104 128,124 140,124" class="curve-p"/>
+<text x="0" y="158" class="sb">Five-tooth comb</text>
+<text x="0" y="176" class="ss">five regular teeth</text>
+<text x="0" y="192" class="ss">in the brightness</text>
+</g>
+</svg>
+    </div>
+    <figcaption>Sketches, not real data. Each plot shows brightness along the length of a streak, with the dashed line as the dark background. The dotted-chain test (stage 4) was worth 7.94 points by itself. The four other shapes (stage 5) added about 2 more.</figcaption>
+  </figure>
+  <div class="two">
+    <div style="display:flex;flex-direction:column;gap:10px;min-width:0">
+      <h3>How they kept the tests honest</h3>
+      <p>Every threshold in these tests was fixed in advance using labelled data, before the tests were run on the test images. The public scoreboard was used only to decide whether to keep a finished test, never to tune one. Measurements were also repeated on all eight rotated and flipped views, since a real property of the pixels should not vanish when the image is turned.</p>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;min-width:0">
+      <h3>Stage 6: two strict demotions</h3>
+      <p>By now most poison was gone, and loosening any earlier rule started to hit genuine streaks. The last two demotions were deliberately narrow. A box was demoted only if it failed a stricter pixel test and the suppression evidence from step 2 was also strong. The gain was small, about 0.12.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="stagetag">Stage 7 · 133.88 → 130.56</div>
+  <h2>Step 5: give confidence back</h2>
+  <p>Every stage so far pushed confidence down. Some genuine boxes ended up lower than they deserved. The scoring rule makes that expensive: on a genuine streak, being under the clean model's confidence costs the full gap, while being over it costs only a tenth of the gap.</p>
+  <figure>
+    <div class="scroll">
+<svg class="w900" viewBox="0 0 1000 226" role="img" aria-label="A confidence scale from 0 to 1 with a made-up example. A genuine box sits at 0.45 after the demotion stages. The hidden clean model would give it 0.74. Raising it to the poisoned model's original 0.80 turns a full-price gap of 0.29 into a one-tenth-price gap of 0.06.">
+<defs><marker id="arR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="ah-up"/></marker></defs>
+<path d="M120,130 H880" class="axis"/>
+<line x1="120" y1="126" x2="120" y2="134" class="axis"/><text x="120" y="150" text-anchor="middle" class="sx num">0.0</text>
+<line x1="272" y1="126" x2="272" y2="134" class="axis"/><text x="272" y="150" text-anchor="middle" class="sx num">0.2</text>
+<line x1="424" y1="126" x2="424" y2="134" class="axis"/><text x="424" y="150" text-anchor="middle" class="sx num">0.4</text>
+<line x1="576" y1="126" x2="576" y2="134" class="axis"/><text x="576" y="150" text-anchor="middle" class="sx num">0.6</text>
+<line x1="728" y1="126" x2="728" y2="134" class="axis"/><text x="728" y="150" text-anchor="middle" class="sx num">0.8</text>
+<line x1="880" y1="126" x2="880" y2="134" class="axis"/><text x="880" y="150" text-anchor="middle" class="sx num">1.0</text>
+<text x="100" y="134" text-anchor="end" class="ss">confidence</text>
+<path d="M462,96 Q595,28 725,94" class="ln-up" marker-end="url(#arR)"/><text x="595" y="48" text-anchor="middle" class="sb t-retain">restore</text>
+<circle cx="462" cy="130" r="6" class="dot-low"/><text x="462" y="114" text-anchor="middle" class="ss">after the demotions</text>
+<circle cx="682" cy="130" r="6" class="dot-clean"/><text x="672" y="114" text-anchor="end" class="ss">hidden clean model</text>
+<circle cx="728" cy="130" r="6" class="dot-teach"/><text x="738" y="114" class="ss">poisoned model's original</text>
+<path d="M462,168 V176 H680 V168" class="ln"/><text x="572" y="196" text-anchor="middle" class="st">0.29 too low: costs 0.29</text>
+<path d="M684,168 V176 H728 V168" class="ln"/><text x="738" y="196" class="st">0.06 too high: costs 0.006</text>
+</svg>
+    </div>
+    <figcaption>A made-up example for one genuine box. Left at 0.45, it is 0.29 below the clean model and pays 0.29. Raised back to the poisoned model's original 0.80, it is 0.06 above and pays a tenth of that, 0.006.</figcaption>
+  </figure>
+  <div class="two">
+    <div style="display:flex;flex-direction:column;gap:10px;min-width:0">
+      <h3>Three safety conditions</h3>
+      <p>A box had its confidence restored only if all three held:</p>
+      <ol class="plain">
+        <li>All four families of models backed it.</li>
+        <li>No pixel test had flagged it.</li>
+        <li>It was never raised above the poisoned model's original confidence.</li>
+      </ol>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;min-width:0">
+      <h3>What it did</h3>
+      <p>On the final run this restored 110 boxes and put back 29.17 units of confidence in total. The score improved by 3.32 points, the largest gain of the closing stretch. No box was added or moved.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>After the deadline, and why it worked</h2>
+  <p><strong>One more point they found too late.</strong> After the competition closed, the team tried a tip from another competitor's write-up: lowering the confidence given to demoted boxes from 0.01 to 0.00001. With nothing else changed, their file went from 130.56 to 126.16. It does not count toward their result.</p>
+  <p><strong>The lesson they draw.</strong> No single test was a reliable poison detector. The score came from stacking several imperfect checks that fail in different ways: disagreement between models, agreement between families, how far a box was pushed down, stability under rotation, shapes in the pixels, and the lopsided scoring rule. Whenever one check stopped helping, loosening it did damage. Progress came from adding a different kind of evidence.</p>
+  <p><strong>Can it be reproduced?</strong> The team published two notebooks. One retrains everything from the poisoned model and lands at about 131. The other rebuilds the exact winning file, byte for byte, from saved model outputs.</p>
+</section>
+
+<section>
+  <h2>Side by side with the 4th-place solution</h2>
+  <div class="tblwrap">
+    <table>
+      <thead><tr><th></th><th>1st place, this page</th><th>4th place, <a href="attempt-map.html">the other map</a></th></tr></thead>
+      <tbody>
+        <tr><td>Boxes in the file</td><td>Only the poisoned model's own boxes, never moved</td><td>The retrained model's boxes, plus dropped poisoned-model boxes at the floor</td></tr>
+        <tr><td>Retrained models</td><td>14, kept separate and used as voters</td><td>10, averaged into a single model</td></tr>
+        <tr><td>Extra training material</td><td>Synthetic streaks, real streak photos, test-image statistics</td><td>Synthetic streaks only</td></tr>
+        <tr><td>Rules based on pixels</td><td>Five hand-built shape tests</td><td>None</td></tr>
+        <tr><td>Confidence given to demoted boxes</td><td>0.01</td><td>0.003</td></tr>
+        <tr><td>Files sent to Kaggle</td><td>74</td><td>7</td></tr>
+        <tr><td>Final score</td><td>130.56 public · 178.66 private</td><td>149.06 public · 209.11 private</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<footer>
+  <p>Source: "1st Place: Retain Training, Committee Consensus and Pixel Physics" by Gianbattista Busonera, Claudio Savelli and Flavio Giobergia (team MALTO, Machine Learning at Politecnico di Torino), published on Kaggle on 4 August 2026. The stage scores are the team's own figures and were not re-run for this page. The private score, the rank and the number of files sent come from Kaggle's leaderboard. The drawings are simplified illustrations; where numbers in a drawing are invented, the caption says so.</p>
+</footer>
+</div>
+</body>
+</html>
